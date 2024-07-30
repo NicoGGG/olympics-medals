@@ -2,7 +2,9 @@ import { Kafka } from 'kafkajs';
 import axios from 'axios';
 import cheerio from 'cheerio';
 import 'dotenv/config';
+import createLogger from './logger.js';
 
+const logger = createLogger('index');
 const kafkaUrl = process.env.KAFKA_URL ?? 'localhost:9092';
 
 const kafka = new Kafka({
@@ -15,7 +17,7 @@ const producer = kafka.producer();
 await producer.connect();
 
 async function fetchFranceOlympicsPage(url) {
-  console.log('Fetching France Olympics page');
+  logger.info('Fetching France Olympics page');
   const response = await axios.get(url, {
     headers: {
       'User-Agent':
@@ -55,12 +57,18 @@ function returnFraMedals(pageContent) {
     });
     return allMedals;
   } else {
-    console.log('No div found with data-test-id="virtuoso-item-list"');
+    logger.error(
+      'HTML Parsing error: No div found with data-test-id="virtuoso-item-list"',
+    );
   }
 }
 
 const franceMedals = returnFraMedals(pageContent);
-console.log(franceMedals);
+if (!franceMedals) {
+  logger.error('No medals found for France');
+  process.exit(1);
+}
+logger.info(franceMedals);
 
 const franceMedalsObject = {
   gold: franceMedals[0],

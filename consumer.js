@@ -1,6 +1,9 @@
 import { Kafka } from 'kafkajs';
 import { MongoClient } from 'mongodb';
 import 'dotenv/config';
+import createLogger from './logger.js';
+
+const logger = createLogger('consumer');
 
 // MongoDB setup
 const mongoUri = process.env.MONGO_URI ?? 'mongodb://localhost:27017';
@@ -31,23 +34,21 @@ await producer.connect();
 await consumer.run({
   eachMessage: async ({ _topic, _partition, message }) => {
     const medals = JSON.parse(message.value.toString());
-    console.log('New value: ', {
-      value: medals,
-    });
+    logger.info(`New value: ${JSON.stringify(medals)}`);
     const fraMedals = await collection.findOne({ country: 'FRA' });
     if (fraMedals) {
-      console.log('Old value: ', fraMedals);
+      logger.info(`Old value: ${JSON.stringify(fraMedals)}`);
       const result = await collection.updateOne(
         { country: 'FRA' },
         { $set: medals },
       );
-      console.log(`${result.modifiedCount} documents were updated`);
+      logger.info(`${result.modifiedCount} documents were updated`);
       if (result.modifiedCount === 0) {
-        console.log('No documents were updated');
+        logger.info('No documents were updated');
       } else {
         const message = buildMessage(fraMedals, medals);
         if (message) {
-          console.log(message);
+          logger.info(message);
           await producer.send({
             topic: 'olympics-updates',
             messages: [{ value: message }],
@@ -58,7 +59,7 @@ await consumer.run({
       const result = await collection.insertOne(
         JSON.parse(message.value.toString()),
       );
-      console.log(
+      logger.info(
         `A document were inserted with the _id: ${result.insertedId}`,
       );
     }
@@ -83,13 +84,13 @@ function buildMessage(oldMedals, newMedals) {
   const allOldMedals = oldMedals.medals;
   const allNewMedals = newMedals.medals;
   const country = oldMedals.country;
-  console.log(country, allOldMedals);
-  console.log(country, allNewMedals);
+  logger.info(country, allOldMedals);
+  logger.info(country, allNewMedals);
   const newTotalMedals = allNewMedals.total;
   const oldTotalMedals = allOldMedals.total;
   medalsGained = newTotalMedals - oldTotalMedals;
   if (medalsGained < 0) {
-    console.error("Medals lost or no change, this shouldn't happen");
+    logger.error("Medals lost or no change, this shouldn't happen");
     return '';
   }
   if (allNewMedals.gold > allOldMedals.gold) {

@@ -1,12 +1,13 @@
 import { Kafka } from 'kafkajs';
 import axios from 'axios';
 import 'dotenv/config';
+import createLogger from './logger.js';
+
+const logger = createLogger('notification');
 
 const discordWebhook = process.env.DISCORD_WEBHOOK;
 if (!discordWebhook) {
-  console.error(
-    'Please provide a DISCORD_WEBHOOK in the environment variables',
-  );
+  logger.error('Please provide a DISCORD_WEBHOOK in the environment variables');
   process.exit(1);
 }
 
@@ -25,7 +26,7 @@ await consumer.subscribe({ topic: 'olympics-updates', fromBeginning: true });
 consumer.run({
   eachMessage: async ({ _topic, _partition, message }) => {
     const messageValue = message.value.toString();
-    console.log(messageValue);
+    logger.info(`Sending message: ${messageValue}`);
     axios.post(discordWebhook, {
       content: messageValue,
     });
