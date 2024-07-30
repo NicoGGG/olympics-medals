@@ -24,6 +24,7 @@ node index.js
 First run will create a new document for the medals. All subsequent runs will trigger a notifications if there are differences with current state
 
 You can setup a crontab to execute index.js automatically
+You can find a example bash script in `scan.sh`
 
-> !Note
+> [!NOTE]
 > Try not to spam to avoid being blacklisted from the olympics website
