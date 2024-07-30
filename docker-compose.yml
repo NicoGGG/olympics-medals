@@ -35,6 +35,14 @@ services:
     depends_on:
       - zoo1
 
+  scaner:
+    build: .
+    depends_on:
+      - kafka1
+    environment:
+      KAFKA_URL: kafka1:19092
+      SCAN_INTERVAL_MS: 300000
+
   consumer:
     build: .
     depends_on:

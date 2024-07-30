@@ -31,6 +31,20 @@ const producer = kafka.producer();
 
 await producer.connect();
 
+async function shutdown() {
+  try {
+    await producer.disconnect();
+    logger.info('Producer disconnected');
+  } catch (error) {
+    logger.error('Error while disconnecting producer', error);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
 await consumer.run({
   eachMessage: async ({ _topic, _partition, message }) => {
     const medals = JSON.parse(message.value.toString());
