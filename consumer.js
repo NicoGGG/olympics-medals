@@ -8,9 +8,16 @@ const logger = createLogger('consumer');
 // MongoDB setup
 const mongoUri = process.env.MONGO_URI ?? 'mongodb://localhost:27017';
 const client = new MongoClient(mongoUri);
-const dbName = 'olympicsDB';
-const collectionName = 'medals';
 
+const dbName =
+  process.env.NODE_ENV === 'prod' ? 'olympicsDB' : 'olympicsDB-dev';
+const collectionName =
+  process.env.NODE_ENV === 'prod' ? 'medals' : 'medals-dev';
+
+const consumerTopicName =
+  process.env.NODE_ENV === 'prod' ? 'olympics' : 'olympics-dev';
+const producerTopicName =
+  process.env.NODE_ENV === 'prod' ? 'olympics-updates' : 'olympics-updates-dev';
 await client.connect();
 const db = client.db(dbName);
 const collection = db.collection(collectionName);
@@ -22,10 +29,10 @@ const kafka = new Kafka({
   brokers: [kafkaUrl],
 });
 
-const consumer = kafka.consumer({ groupId: 'olympics' });
+const consumer = kafka.consumer({ groupId: consumerTopicName });
 
 await consumer.connect();
-await consumer.subscribe({ topic: 'olympics', fromBeginning: true });
+await consumer.subscribe({ topic: consumerTopicName, fromBeginning: true });
 
 const producer = kafka.producer();
 
@@ -64,7 +71,7 @@ await consumer.run({
         if (message) {
           logger.info(message);
           await producer.send({
-            topic: 'olympics-updates',
+            topic: producerTopicName,
             messages: [{ value: message }],
           });
         }
@@ -73,9 +80,7 @@ await consumer.run({
       const result = await collection.insertOne(
         JSON.parse(message.value.toString()),
       );
-      logger.info(
-        `A document were inserted with the _id: ${result.insertedId}`,
-      );
+      logger.info(`A document was inserted with the _id: ${result.insertedId}`);
     }
   },
 });
@@ -90,35 +95,48 @@ await consumer.run({
  * @returns {string} The message based on the result of the update operation.
  */
 function buildMessage(oldMedals, newMedals) {
-  let medalsGained = 0;
-  let goldMedalsGained = 0;
-  let silverMedalsGained = 0;
-  let bronzeMedalsGained = 0;
-  let message = 'Nouvelles médailles pour la France! 🏅🇫🇷\n\n';
-  const allOldMedals = oldMedals.medals;
-  const allNewMedals = newMedals.medals;
-  const country = oldMedals.country;
-  logger.info(country, allOldMedals);
-  logger.info(country, allNewMedals);
-  const newTotalMedals = allNewMedals.total;
-  const oldTotalMedals = allOldMedals.total;
-  medalsGained = newTotalMedals - oldTotalMedals;
+  // TODO: Make unit test to refactor using the new medals objects from Next Data
+
+  let message = '';
+
+  const allOldMedals = oldMedals.total;
+  const allNewMedals = newMedals.total;
+
+  const medalsGained = allNewMedals.total - allOldMedals.total;
   if (medalsGained < 0) {
     logger.error("Medals lost or no change, this shouldn't happen");
     return '';
   }
   if (allNewMedals.gold > allOldMedals.gold) {
-    goldMedalsGained = allNewMedals.gold - allOldMedals.gold;
-    message += `🥇 Médailles d'or gagnées: ${goldMedalsGained}\n`;
+    const goldMedalsGained = allNewMedals.gold - allOldMedals.gold;
+    message += `🥇 Médailles d'or gagnées: ${goldMedalsGained}\n\n`;
   }
   if (allNewMedals.silver > allOldMedals.silver) {
-    silverMedalsGained = allNewMedals.silver - allOldMedals.silver;
-    message += `🥈 Médailles d'argent gagnées: ${silverMedalsGained}\n`;
+    const silverMedalsGained = allNewMedals.silver - allOldMedals.silver;
+    message += `🥈 Médailles d'argent gagnées: ${silverMedalsGained}\n\n`;
   }
   if (allNewMedals.bronze > allOldMedals.bronze) {
-    bronzeMedalsGained = allNewMedals.bronze - allOldMedals.bronze;
-    message += `🥉 Médailles de bronze gagnées: ${bronzeMedalsGained}\n`;
+    const bronzeMedalsGained = allNewMedals.bronze - allOldMedals.bronze;
+    message += `🥉 Médailles de bronze gagnées: ${bronzeMedalsGained}\n\n`;
   }
+
+  // Here find the diff by Discipline
+  const medalsByDiscipline = newMedals.byDiscipline;
+
+  medalsByDiscipline.forEach((discipline) => {
+    const oldDiscipline = oldMedals.byDiscipline.find(
+      (oldDiscipline) => oldDiscipline.name === discipline.name,
+    );
+    if (oldDiscipline) {
+      const medalsGained =
+        discipline.winners.length - oldDiscipline.winners.length;
+      if (medalsGained > 0) {
+        message += `🏅 ${discipline.name}: ${medalsGained} médaille(s)\n`;
+      }
+    } else {
+      message += `🏅 ${discipline.name}: ${discipline.winners.length} médaille(s)\n`;
+    }
+  });
 
   message += `\nTotal de médailles gagnées: ${allNewMedals.total}\n`;
   message += `\nTotal de médailles d'or: ${allNewMedals.gold}\n`;
