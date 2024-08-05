@@ -4,6 +4,8 @@ import 'dotenv/config';
 import createLogger from './logger.js';
 
 const logger = createLogger('notification');
+const consumerTopicName =
+  process.env.NODE_ENV === 'prod' ? 'olympics-updates' : 'olympics-updates-dev';
 
 const discordWebhook = process.env.DISCORD_WEBHOOK;
 if (!discordWebhook) {
@@ -18,10 +20,10 @@ const kafka = new Kafka({
   brokers: [kafkaUrl],
 });
 
-const consumer = kafka.consumer({ groupId: 'olympics-updates' });
+const consumer = kafka.consumer({ groupId: consumerTopicName });
 
 await consumer.connect();
-await consumer.subscribe({ topic: 'olympics-updates', fromBeginning: true });
+await consumer.subscribe({ topic: consumerTopicName, fromBeginning: true });
 
 consumer.run({
   eachMessage: async ({ _topic, _partition, message }) => {
