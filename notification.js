@@ -34,3 +34,17 @@ consumer.run({
     });
   },
 });
+
+async function shutdown() {
+  try {
+    await consumer.disconnect();
+    logger.info('Consumer disconnected');
+  } catch (error) {
+    logger.error('Error while disconnecting consumer', error);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

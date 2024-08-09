@@ -41,9 +41,10 @@ await producer.connect();
 async function shutdown() {
   try {
     await producer.disconnect();
-    logger.info('Producer disconnected');
+    await consumer.disconnect();
+    logger.info('Producer and consumer disconnected');
   } catch (error) {
-    logger.error('Error while disconnecting producer', error);
+    logger.error('Error while disconnecting producer and/or consumer', error);
   } finally {
     process.exit(0);
   }
