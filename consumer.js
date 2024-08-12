@@ -55,25 +55,27 @@ process.on('SIGTERM', shutdown);
 
 await consumer.run({
   eachMessage: async ({ _topic, _partition, message }) => {
-    const medals = JSON.parse(message.value.toString());
-    logger.info(`New value: ${JSON.stringify(medals)}`);
-    const fraMedals = await collection.findOne({ country: 'FRA' });
-    if (fraMedals) {
-      logger.info(`Old value: ${JSON.stringify(fraMedals)}`);
+    const newMessage = JSON.parse(message.value.toString());
+    logger.info(`New value: ${JSON.stringify(newMessage)}`);
+    const existingMedals = await collection.findOne({
+      country: newMessage.country,
+    });
+    if (existingMedals) {
+      logger.info(`Old value: ${JSON.stringify(existingMedals)}`);
       const result = await collection.updateOne(
-        { country: 'FRA' },
-        { $set: medals },
+        { country: newMessage.country },
+        { $set: newMessage },
       );
       logger.info(`${result.modifiedCount} documents were updated`);
       if (result.modifiedCount === 0) {
         logger.info('No documents were updated');
       } else {
-        const message = buildMessage(fraMedals, medals);
-        if (message) {
-          logger.info(message);
+        const notification = buildMessage(existingMedals, newMessage);
+        if (notification) {
+          logger.info(notification);
           await producer.send({
             topic: producerTopicName,
-            messages: [{ value: message }],
+            messages: [{ value: notification }],
           });
         }
       }
@@ -108,6 +110,7 @@ function buildMessage(oldMedals, newMedals) {
     logger.error("Medals lost or no change, this shouldn't happen");
     return '';
   }
+  message += `🏅 Médailles gagnées pour la ${countryNames[newMedals.country]} ${flags[newMedals.country]}: ${medalsGained}\n\n`;
   if (allNewMedals.gold > allOldMedals.gold) {
     const goldMedalsGained = allNewMedals.gold - allOldMedals.gold;
     message += `🥇 Médailles d'or gagnées: ${goldMedalsGained}\n\n`;
@@ -132,10 +135,10 @@ function buildMessage(oldMedals, newMedals) {
       const medalsGained =
         discipline.winners.length - oldDiscipline.winners.length;
       if (medalsGained > 0) {
-        message += `🏅 ${discipline.name}: ${medalsGained} médaille(s)\n`;
+        message += `- ${discipline.name}: ${medalsGained} médaille(s)\n`;
       }
     } else {
-      message += `🏅 ${discipline.name}: ${discipline.winners.length} médaille(s)\n`;
+      message += `- ${discipline.name}: ${discipline.winners.length} médaille(s)\n`;
     }
   });
 
@@ -147,3 +150,13 @@ function buildMessage(oldMedals, newMedals) {
 
   return message;
 }
+
+const countryNames = {
+  FRA: 'France',
+  POL: 'Poland',
+};
+
+const flags = {
+  FRA: '🇫🇷',
+  POL: '🇵🇱',
+};

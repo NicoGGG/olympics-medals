@@ -1,7 +1,7 @@
 import axios from 'axios';
 import cheerio from 'cheerio';
 
-async function fetchFranceOlympicsPage(url) {
+async function fetchOlympicsMedalsPage(url) {
   const response = await axios.get(url, {
     headers: {
       'User-Agent':
@@ -11,10 +11,10 @@ async function fetchFranceOlympicsPage(url) {
   return response.data;
 }
 
-async function fetchFranceOlympicStatus() {
-  const url = 'https://olympics.com/en/paris-2024/medals/france';
+async function fetchOlympicStatus(countryCode) {
+  const url = 'https://olympics.com/en/paris-2024/medals';
 
-  const pageContent = await fetchFranceOlympicsPage(url);
+  const pageContent = await fetchOlympicsMedalsPage(url);
   const $ = cheerio.load(pageContent);
 
   const script = $('#__NEXT_DATA__').contents().toString();
@@ -23,15 +23,19 @@ async function fetchFranceOlympicStatus() {
   const medalsTable =
     nextData.props.pageProps.initialMedals.medalStandings.medalsTable;
 
-  const franceMedals = medalsTable.find(
-    (medal) => medal.organisation === 'FRA',
+  const countryMedals = medalsTable.find(
+    (medal) => medal.organisation === countryCode,
   );
 
-  const franceStatus = {
-    totalMedalsNumber: franceMedals.medalsNumber.filter(
+  if (!countryMedals) {
+    logger.warn(`Country ${countryCode} not found in the medals table`);
+    return;
+  }
+  const countryStatus = {
+    totalMedalsNumber: countryMedals.medalsNumber.filter(
       (medal) => medal.type === 'Total',
     )[0],
-    medalsByDiscipline: franceMedals.disciplines.map((discipline) => {
+    medalsByDiscipline: countryMedals.disciplines.map((discipline) => {
       const name = discipline.name;
       const winners = discipline.medalWinners.map((winner) => {
         return {
@@ -46,7 +50,7 @@ async function fetchFranceOlympicStatus() {
       };
     }),
   };
-  return franceStatus;
+  return countryStatus;
 }
 
-export default fetchFranceOlympicStatus;
+export default fetchOlympicStatus;
